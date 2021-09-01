@@ -50,7 +50,7 @@ class ConfigYOLOV3DarkNet53:
     backbone_layers = [1, 2, 8, 8, 4]
 
     # confidence under ignore_threshold means no object when training
-    ignore_threshold = ignore_threshold
+    ignore_threshold = 0.7
 
     # h->w
     # anchor_scales = [(10, 13),

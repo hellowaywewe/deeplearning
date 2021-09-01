@@ -2,7 +2,7 @@ from collections import defaultdict
 import numpy as np
 import sys
 import cv2
-
+import pandas as pd
 
 label_list = [
     'Bird_spp',
@@ -12,8 +12,8 @@ label_list = [
     'Himalaya_marmot',
     'Red_fox',
     'Snow_leopard',
-    'Upland_Buzzard',
     'Tibetan_snowcock',
+    'Upland_Buzzard',
     'White-lipped_deer'
 ]
 
@@ -138,7 +138,8 @@ class DetectionEngine:
     #
     #     return img
 
-    def draw_boxes_in_image(self, img):
+    def draw_boxes_in_image(self, img, img_name):
+        res_list = []
         for i in range(len(self.det_boxes)):
             x = int(self.det_boxes[i]['bbox'][0])
             y = int(self.det_boxes[i]['bbox'][1])
@@ -148,5 +149,6 @@ class DetectionEngine:
             score = round(self.det_boxes[i]['score'], 3)
             text = self.det_boxes[i]['category_id'] + ', ' + str(score)
             cv2.putText(img, text, (x, y), cv2.FONT_HERSHEY_PLAIN, 3, (0, 0, 255), 3)
-
-        return img
+            res = (int(img_name.split(".")[0]), img_name, self.det_boxes[i]['category_id'], score)
+            res_list.append(res)
+        return img, res_list

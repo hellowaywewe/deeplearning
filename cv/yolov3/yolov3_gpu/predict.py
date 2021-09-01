@@ -48,7 +48,7 @@ def parse_args():
     parser.add_argument('--log_path', type=str, default='outputs/', help='checkpoint save location')
     # detect_related
     parser.add_argument('--nms_thresh', type=float, default=0.5, help='threshold for NMS')
-    parser.add_argument('--ignore_threshold', type=float, default=0.7,
+    parser.add_argument('--ignore_threshold', type=float, default=0.01,
                         help='threshold to throw low quality boxes')
 
     args, _ = parser.parse_known_args()
@@ -97,36 +97,30 @@ def predict():
 
     config = ConfigYOLOV3DarkNet53()
     args.logger.info('testing shape: {}'.format(config.test_img_shape))
+    image_path = args.image_path
+    # data preprocess operation
+    ori_image = cv2.imread(image_path, 1)
+    image, image_shape = data_preprocess(ori_image, config)
 
     # init detection engine
     detection = DetectionEngine(args)
-    network.set_train(False)
 
     input_shape = Tensor(tuple(config.test_img_shape), ms.float32)
     args.logger.info('Start inference....')
+    network.set_train(False)
+    prediction = network(Tensor(image.reshape(1, 3, 416, 416), ms.float32), input_shape)
+    output_big, output_me, output_small = prediction
+    output_big = output_big.asnumpy()
+    output_me = output_me.asnumpy()
+    output_small = output_small.asnumpy()
 
-    image_path = args.image_path
-    for img_dir, dirnames, img_names in os.walk(image_path):
-        for img_name in img_names:
-            if img_name.lower().endswith(('.jpg', '.jpeg', '.png')):
-                img_file = os.path.join(img_dir, img_name)
-                # data preprocess operation
-                ori_image = cv2.imread(img_file, 1)
-                image, image_shape = data_preprocess(ori_image, config)
+    detection.detect([output_small, output_me, output_big], args.per_batch_size,
+                     image_shape, config)
+    detection.do_nms_for_results()
+    img = detection.draw_boxes_in_image(ori_image)
 
-                prediction = network(Tensor(image.reshape(1, 3, 416, 416), ms.float32), input_shape)
-                output_big, output_me, output_small = prediction
-                output_big = output_big.asnumpy()
-                output_me = output_me.asnumpy()
-                output_small = output_small.asnumpy()
-
-                detection.detect([output_small, output_me, output_big], args.per_batch_size,
-                                 image_shape, config)
-                detection.do_nms_for_results()
-                img = detection.draw_boxes_in_image(ori_image)
-
-                output_img = 'output_' + os.path.basename(img_file).lower()
-                cv2.imwrite(os.path.join(args.output_dir, output_img), img)
+    output_img = 'output_' + os.path.basename(image_path).lower()
+    cv2.imwrite(os.path.join(args.output_dir, output_img), img)
 
 
 if __name__ == "__main__":

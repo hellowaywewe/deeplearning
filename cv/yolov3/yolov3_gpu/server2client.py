@@ -31,7 +31,7 @@ def data_preprocess(img, config):
 
 def yolov3_predict(instance, strategy):
     network = YOLOV3DarkNet53(is_training=False)
-    pretrained_ckpt = './ckpt/yolov3.ckpt'
+    pretrained_ckpt = '/dataset/ckpt-files/shanshui_full/yolov3.ckpt'
     if not os.path.exists(pretrained_ckpt):
         err_msg = "The yolov3.ckpt file does not exist!"
         return {"status": 1, "err_msg": err_msg}
@@ -99,4 +99,4 @@ def predict():
 
 
 if __name__ == '__main__':
-    app.run(host="172.17.0.2", port=8080, debug=True)
+    app.run(host="172.17.0.3", port=8080, debug=True)

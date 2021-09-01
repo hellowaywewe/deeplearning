@@ -21,6 +21,7 @@ import cv2
 
 import mindspore as ms
 import mindspore.context as context
+import pandas as pd
 from mindspore import Tensor
 from mindspore.train.serialization import load_checkpoint, load_param_into_net
 
@@ -48,7 +49,7 @@ def parse_args():
     parser.add_argument('--log_path', type=str, default='outputs/', help='checkpoint save location')
     # detect_related
     parser.add_argument('--nms_thresh', type=float, default=0.5, help='threshold for NMS')
-    parser.add_argument('--ignore_threshold', type=float, default=0.01,
+    parser.add_argument('--ignore_threshold', type=float, default=0.7,
                         help='threshold to throw low quality boxes')
 
     args, _ = parser.parse_known_args()
@@ -59,6 +60,14 @@ def data_preprocess(ori_img, config):
     img, ori_image_shape = _reshape_data(ori_img, config.test_img_shape)
     img = img.transpose(2, 0, 1)
     return img, ori_image_shape
+
+
+def write_results(results):
+    excel_path = './predict_results.xlsx'
+    writer = pd.ExcelWriter(excel_path)
+    df1 = pd.DataFrame(data=results, columns=['img_name', 'species', 'score'])
+    df1.to_excel(writer, 'predict_results', index=False)
+    writer.save()
 
 
 def predict():
@@ -97,30 +106,40 @@ def predict():
 
     config = ConfigYOLOV3DarkNet53()
     args.logger.info('testing shape: {}'.format(config.test_img_shape))
-    image_path = args.image_path
-    # data preprocess operation
-    ori_image = cv2.imread(image_path, 1)
-    image, image_shape = data_preprocess(ori_image, config)
 
-    # init detection engine
+    network.set_train(False)
     detection = DetectionEngine(args)
 
-    input_shape = Tensor(tuple(config.test_img_shape), ms.float32)
     args.logger.info('Start inference....')
-    network.set_train(False)
-    prediction = network(Tensor(image.reshape(1, 3, 416, 416), ms.float32), input_shape)
-    output_big, output_me, output_small = prediction
-    output_big = output_big.asnumpy()
-    output_me = output_me.asnumpy()
-    output_small = output_small.asnumpy()
 
-    detection.detect([output_small, output_me, output_big], args.per_batch_size,
-                     image_shape, config)
-    detection.do_nms_for_results()
-    img = detection.draw_boxes_in_image(ori_image)
+    image_path = args.image_path
+    results = []
+    for img_dir, dirnames, img_names in os.walk(image_path):
+        print("image_path")
+        for img_name in img_names:
+            if img_name.lower().endswith(('.jpg', '.jpeg', '.png')):
+                # init detection engine
+                input_shape = Tensor(tuple(config.test_img_shape), ms.float32)
+                img_file = os.path.join(img_dir, img_name)
+                # data preprocess operation
+                ori_image = cv2.imread(img_file, 1)
+                image, image_shape = data_preprocess(ori_image, config)
 
-    output_img = 'output_' + os.path.basename(image_path).lower()
-    cv2.imwrite(os.path.join(args.output_dir, output_img), img)
+                prediction = network(Tensor(image.reshape(1, 3, 416, 416), ms.float32), input_shape)
+                output_big, output_me, output_small = prediction
+                output_big = output_big.asnumpy()
+                output_me = output_me.asnumpy()
+                output_small = output_small.asnumpy()
+
+                detection.detect([output_small, output_me, output_big], args.per_batch_size,
+                                 image_shape, config)
+                detection.do_nms_for_results()
+                img, res_list = detection.draw_boxes_in_image(ori_image, img_name)
+
+                output_img = 'output_' + os.path.basename(img_file).lower()
+                cv2.imwrite(os.path.join(args.output_dir, output_img), img)
+                results.extend(res_list)
+    write_results(results)
 
 
 if __name__ == "__main__":
